@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chat Application</title>
+    <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+    <div id="loginContainer">
+        <h1 class="header">CHAT APPLICATION</h1>
+        <input type="text" id="usernameInput" placeholder="Enter your username">
+        <button id="loginButton">Login</button>
+    </div>
+    <div id="chatContainer">
+        <div>
+            <input type="text" id="newRoomInput" placeholder="Create a new room">
+            <button id="createRoomButton">Create Room</button>
+        </div>
+        <div>
+            <ul id="rooms"></ul>
+        </div>
+        <div>
+            <h3 id="roomName">General</h3>
+            <div id="messages"></div>
+            <input type="text" id="messageInput" placeholder="Enter your message">
+            <button id="sendButton">Send</button>
+        </div>
+    </div>
+    <script>
+        const loginContainer = document.getElementById('loginContainer');
+        const chatContainer = document.getElementById('chatContainer');
+        const usernameInput = document.getElementById('usernameInput');
+        const loginButton = document.getElementById('loginButton');
+
+        const roomList = document.getElementById('rooms');
+        const newRoomInput = document.getElementById('newRoomInput');
+        const createRoomButton = document.getElementById('createRoomButton');
+        const roomName = document.getElementById('roomName');
+        const messages = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+
+        let username;
+        let currentRoom = 'General';
+        const socket = new WebSocket('ws://localhost:3000');
+
+        loginButton.addEventListener('click', () => {
+            username = usernameInput.value.trim();
+            if (username) {
+                socket.send(JSON.stringify({ type: 'check-username', username }));
+            }
+        });
+
+        createRoomButton.addEventListener('click', () => {
+            const room = newRoomInput.value.trim();
+            if (room) {
+                socket.send(JSON.stringify({ type: 'create-room', room }));
+                newRoomInput.value = '';
+            }
+        });
+
+        sendButton.addEventListener('click', () => {
+            const message = messageInput.value.trim();
+            if (message) {
+                socket.send(JSON.stringify({ type: 'message', room: currentRoom, username, message }));
+                messageInput.value = '';
+            }
+        });
+
+        socket.addEventListener('message', event => {
+            const data = JSON.parse(event.data);
+            switch (data.type) {
+                case 'username-checked':
+                    if (data.valid) {
+                        loginContainer.style.display = 'none';
+                        chatContainer.style.display = 'block';
+                        socket.send(JSON.stringify({ type: 'join', username }));
+                    } else {
+                        alert('Username is already taken. Please choose another one.');
+                    }
+                    break;
+                case 'rooms':
+                    updateRooms(data.rooms);
+                    break;
+                case 'message':
+                    displayMessage(data);
+                    break;
+            }
+        });
+
+        function updateRooms(rooms) {
+            roomList.innerHTML = '';
+            rooms.forEach(room => {
+                const roomItem = document.createElement('li');
+                roomItem.textContent = room;
+
+                const deleteButton = document.createElement('button');
+                deleteButton.textContent = 'Delete';
+                deleteButton.classList.add('deleteRoomButton');
+                deleteButton.addEventListener('click', () => {
+                    socket.send(JSON.stringify({ type: 'delete-room', room }));
+                });
+
+                roomItem.appendChild(deleteButton);
+                roomItem.addEventListener('click', () => {
+                    currentRoom = room;
+                    roomName.textContent = room;
+                    messages.innerHTML = '';
+                });
+
+                roomList.appendChild(roomItem);
+            });
+        }
+
+        function displayMessage({ username, message, timestamp }) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message');
+            messageElement.innerHTML = `<span>${username}</span>: ${message} <small>${new Date(timestamp).toLocaleTimeString()}</small>`;
+            messages.appendChild(messageElement);
+            messages.scrollTop = messages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
